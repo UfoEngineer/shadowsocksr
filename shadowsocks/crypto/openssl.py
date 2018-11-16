@@ -30,7 +30,7 @@ loaded = False
 
 buf_size = 2048
 
-
+openssl_version_methold = 0
 def load_openssl():
     global loaded, libcrypto, buf
 
@@ -48,8 +48,12 @@ def load_openssl():
 
     libcrypto.EVP_CipherUpdate.argtypes = (c_void_p, c_void_p, c_void_p,
                                            c_char_p, c_int)
-
-    libcrypto.EVP_CIPHER_CTX_cleanup.argtypes = (c_void_p,)
+    try:
+        libcrypto.EVP_CIPHER_CTX_cleanup.argtypes = (c_void_p,)
+    except AttributeError:
+        libcrypto.EVP_CIPHER_CTX_reset.argtypes = (c_void_p,)
+    except Exception as e:
+        raise (e)
     libcrypto.EVP_CIPHER_CTX_free.argtypes = (c_void_p,)
     if hasattr(libcrypto, 'OpenSSL_add_all_ciphers'):
         libcrypto.OpenSSL_add_all_ciphers()
@@ -108,7 +112,13 @@ class OpenSSLCrypto(object):
 
     def clean(self):
         if self._ctx:
-            libcrypto.EVP_CIPHER_CTX_cleanup(self._ctx)
+            try:
+                libcrypto.EVP_CIPHER_CTX_cleanup(self._ctx)
+            except AttributeError:
+                libcrypto.EVP_CIPHER_CTX_reset(self._ctx)
+            except Exception as e:
+                raise (e)
+
             libcrypto.EVP_CIPHER_CTX_free(self._ctx)
 
 
@@ -175,6 +185,14 @@ def test_bf_cfb():
 
 def test_rc4():
     run_method('rc4')
+
+def check_openssl_ver(libcrypto_path):
+    import re
+    res=re.search('\d\.\d\.\d',libcrypto_path).group().split('.')
+    if res[1]!='0':
+        return 2
+    else:
+        return 1
 
 
 if __name__ == '__main__':
